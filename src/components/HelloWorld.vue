@@ -1,59 +1,86 @@
 <template>
   <div class="hello">
-    <h1>{{ msg }}</h1>
-    <p>
-      For a guide and recipes on how to configure / customize this project,<br>
-      check out the
-      <a href="https://cli.vuejs.org" target="_blank" rel="noopener">vue-cli documentation</a>.
-    </p>
-    <h3>Installed CLI Plugins</h3>
-    <ul>
-      <li><a href="https://github.com/vuejs/vue-cli/tree/dev/packages/%40vue/cli-plugin-babel" target="_blank" rel="noopener">babel</a></li>
-      <li><a href="https://github.com/vuejs/vue-cli/tree/dev/packages/%40vue/cli-plugin-typescript" target="_blank" rel="noopener">typescript</a></li>
-      <li><a href="https://github.com/vuejs/vue-cli/tree/dev/packages/%40vue/cli-plugin-eslint" target="_blank" rel="noopener">eslint</a></li>
-    </ul>
-    <h3>Essential Links</h3>
-    <ul>
-      <li><a href="https://vuejs.org" target="_blank" rel="noopener">Core Docs</a></li>
-      <li><a href="https://forum.vuejs.org" target="_blank" rel="noopener">Forum</a></li>
-      <li><a href="https://chat.vuejs.org" target="_blank" rel="noopener">Community Chat</a></li>
-      <li><a href="https://twitter.com/vuejs" target="_blank" rel="noopener">Twitter</a></li>
-      <li><a href="https://news.vuejs.org" target="_blank" rel="noopener">News</a></li>
-    </ul>
-    <h3>Ecosystem</h3>
-    <ul>
-      <li><a href="https://router.vuejs.org" target="_blank" rel="noopener">vue-router</a></li>
-      <li><a href="https://vuex.vuejs.org" target="_blank" rel="noopener">vuex</a></li>
-      <li><a href="https://github.com/vuejs/vue-devtools#vue-devtools" target="_blank" rel="noopener">vue-devtools</a></li>
-      <li><a href="https://vue-loader.vuejs.org" target="_blank" rel="noopener">vue-loader</a></li>
-      <li><a href="https://github.com/vuejs/awesome-vue" target="_blank" rel="noopener">awesome-vue</a></li>
-    </ul>
+    <div id="animation-container"></div>
   </div>
 </template>
 
 <script lang="ts">
+import dragDrop from 'drag-drop';
+import { ungzip } from 'pako';
+import lottie, { AnimationItem } from 'lottie-web';
 import { Component, Prop, Vue } from 'vue-property-decorator';
+
+const loadTgs = (filereader): string | null => {
+  const buffer = filereader.result as ArrayBuffer;
+  const hoge = new Uint8Array(buffer);
+
+  if (hoge[0] === 0x1f && hoge[1] === 0x8b) {
+    try {
+      return ungzip(hoge, { to: 'string' });
+    } catch (e) {
+      console.error('corrupt gzip');
+      return null;
+    }
+  } else {
+    console.error('invalid filetype')
+    return null;
+  }
+};
+const loadLottieJSON = (filereader: FileReader) => filereader.result as string;
 
 @Component
 export default class HelloWorld extends Vue {
-  @Prop() private msg!: string;
+  animation: AnimationItem | null = null;
+  removeListner: Function | null = null;
+  isAnimating: boolean = false;
+
+  loadAnimation(lottieJson: string) {
+    let animationData;
+    try {
+      animationData = JSON.parse(lottieJson);
+    } catch (e) {
+      console.error('invalid JSON');
+      return;
+    }
+
+    if (this.animation) {
+      this.animation.destroy();
+      this.videoDataUrl = '';
+    }
+
+    this.animation = lottie.loadAnimation({
+      animationData,
+      container: document.getElementById('animation-container'),
+      // loop: true,
+    });
+    this.isAnimating = true;
+  }
+
+  mounted() {
+    this.removeListner = dragDrop('.hello', (files) => {
+      const file = files[0];
+      const filereader = new FileReader();
+
+      if (file.type === 'application/json') {
+        filereader.readAsText(file);
+        filereader.addEventListener('load', () => this.loadAnimation(loadLottieJSON(filereader)));
+      } else {
+        // binary file
+        filereader.readAsArrayBuffer(file);
+        filereader.addEventListener('load', () => this.loadAnimation(loadTgs(filereader)));
+      }
+    });
+  }
 }
 </script>
 
-<!-- Add "scoped" attribute to limit CSS to this component only -->
 <style scoped lang="scss">
-h3 {
-  margin: 40px 0 0;
+.hello {
+  width: 100%;
+  height: 100%;
 }
-ul {
-  list-style-type: none;
-  padding: 0;
-}
-li {
-  display: inline-block;
-  margin: 0 10px;
-}
-a {
-  color: #42b983;
+#animation-container, video {
+  width: 320px;
+  height: 320px;
 }
 </style>
