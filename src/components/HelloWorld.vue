@@ -1,6 +1,7 @@
 <template>
   <div class="hello">
     <div id="animation-container"></div>
+    <video v-if="videoDataUrl" :src="videoDataUrl" autoplay controls loop />
   </div>
 </template>
 
@@ -28,13 +29,33 @@ const loadTgs = (filereader): string | null => {
 };
 const loadLottieJSON = (filereader: FileReader) => filereader.result as string;
 
+const xmlSerializer = new XMLSerializer();
+
 @Component
 export default class HelloWorld extends Vue {
   animation: AnimationItem | null = null;
   removeListner: Function | null = null;
   isAnimating: boolean = false;
+  videoDataUrl: string = '';
 
   loadAnimation(lottieJson: string) {
+    const canvas = document.createElement('canvas');
+    canvas.height = 320;
+    canvas.width = 320;
+    const context = canvas.getContext('2d');
+    context.fillStyle = '#ffffff';
+    const stream = canvas.captureStream();
+    const recorder = new MediaRecorder(stream, { mimeType: "video/webm" });
+    const data = [];
+    recorder.ondataavailable = function(event) {
+      if (event.data && event.data.size) {
+        data.push(event.data);
+      }
+    };
+    recorder.onstop = () => {
+      this.videoDataUrl = URL.createObjectURL(new Blob(data, { type: "video/webm" }));
+    };
+
     let animationData;
     try {
       animationData = JSON.parse(lottieJson);
@@ -54,6 +75,27 @@ export default class HelloWorld extends Vue {
       // loop: true,
     });
     this.isAnimating = true;
+
+    this.animation.addEventListener('enterFrame', () => {
+      if (recorder.state === 'inactive') {
+        recorder.start();
+      }
+
+      const svg = document.querySelector('#animation-container svg');
+      const xml = xmlSerializer.serializeToString(svg);
+      const dataUrl = URL.createObjectURL(new Blob([xml], {type: "image/svg+xml"}));
+      const img = new Image(320, 320);
+      img.height = 320;
+      img.width = 320;
+      img.src = dataUrl;
+      img.onload = () => {
+        context.fillRect(0, 0, 320, 320);
+        context.drawImage(img, 0, 0, 320, 320);
+      };
+    });
+    this.animation.addEventListener('complete', () => {
+      recorder.stop();
+    });
   }
 
   mounted() {
