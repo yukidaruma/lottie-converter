@@ -1,6 +1,6 @@
 <template>
   <div class="hello">
-    <div id="animation-container"></div>
+    <div id="animation-container" ref="animationContainer"></div>
     <div v-if="recorderType === 'webm'">
       <video v-if="videoDataUrl" :src="videoDataUrl" autoplay controls loop />
     </div>
@@ -16,14 +16,16 @@
 </template>
 
 <script lang="ts">
-import dragDrop from 'drag-drop';
 import { ungzip } from 'pako';
 import lottie, { AnimationItem } from 'lottie-web';
 import { Component, Prop, Vue } from 'vue-property-decorator';
-import Gif from 'gif.js';
-import workerBlob from '../gif-worker-blob.js';
+import workerBlob from '../gif-worker-blob';
+// @ts-ignore
+const dragDrop: any = require('drag-drop');
+// @ts-ignore
+const Gif: any = require('gif.js');
 
-const loadTgs = (filereader): string | null => {
+const loadTgs = (filereader: FileReader): string | null => {
   const buffer = filereader.result as ArrayBuffer;
   const hoge = new Uint8Array(buffer);
 
@@ -46,7 +48,7 @@ const xmlSerializer = new XMLSerializer();
 @Component
 export default class HelloWorld extends Vue {
   animation: AnimationItem | null = null;
-  gif: Gif | null = null;
+  gif: any = null;
   isAnimating: boolean = false;
   videoDataUrl: string = '';
   removeListner: Function | null = null;
@@ -66,21 +68,23 @@ export default class HelloWorld extends Vue {
     this.objectUrls.push(objectUrl);
     return objectUrl;
   }
-  loadAnimation(lottieJson: string) {
+  loadAnimation(lottieJson: string | null) {
     const canvas = document.createElement('canvas');
     canvas.height = 320;
     canvas.width = 320;
-    const context = canvas.getContext('2d');
+    const context = canvas.getContext('2d')!;
     context.fillStyle = '#ffffff';
+    // @ts-ignore
     const stream = canvas.captureStream();
+    // @ts-ignore
     const recorder = this.recorderType === 'webm' ? new MediaRecorder(stream, { mimeType: "video/webm" }) : {
       stop: () => {},
     };
     if (this.recorderType === 'gif') {
       this.gif = this.createGifEncoder();
     }
-    const data = [];
-    recorder.ondataavailable = function(event) {
+    const data: BlobPart[] = [];
+    recorder.ondataavailable = function(event: any) {
       if (event.data && event.data.size) {
         data.push(event.data);
       }
@@ -94,6 +98,9 @@ export default class HelloWorld extends Vue {
 
     let animationData;
     try {
+      if (!lottieJson) {
+        return;
+      }
       animationData = JSON.parse(lottieJson);
     } catch (e) {
       console.error('invalid JSON');
@@ -103,7 +110,7 @@ export default class HelloWorld extends Vue {
     this.destroyAnimation();
     this.animation = lottie.loadAnimation({
       animationData,
-      container: document.getElementById('animation-container'),
+      container: this.$refs.animationContainer as Element,
       // loop: true,
     });
     this.isAnimating = true;
@@ -114,7 +121,8 @@ export default class HelloWorld extends Vue {
         recorder.start();
       }
 
-      const svg = document.querySelector('#animation-container svg');
+      // Element inherets from Node so you can treat Element as Node
+      const svg = document.querySelector('#animation-container svg')! as Node;
       const xml = xmlSerializer.serializeToString(svg);
       const dataUrl = this.createObjectUrl(new Blob([xml], {type: "image/svg+xml"}));
       const img = new Image(320, 320);
@@ -148,7 +156,7 @@ export default class HelloWorld extends Vue {
       width: 320,
     });
     const $vm = this;
-    gifEncoder.on('finished', function(blob) {
+    gifEncoder.on('finished', function(blob: Blob) {
       $vm.videoDataUrl = $vm.createObjectUrl(blob);
       $vm.isRecording = false;
       $vm.destroyGifEncoder();
@@ -157,12 +165,12 @@ export default class HelloWorld extends Vue {
   }
   destroyGifEncoder() {
     if (this.gif) {
-      this.gif.freeWorkers.forEach(w => w.terminate());
+      this.gif.freeWorkers.forEach((w: any) => w.terminate());
       this.gif = null;
     }
   }
   mounted() {
-    this.removeListner = dragDrop('.hello', (files) => {
+    this.removeListner = dragDrop('.hello', (files: File[]) => {
       const file = files[0];
       const filereader = new FileReader();
 
