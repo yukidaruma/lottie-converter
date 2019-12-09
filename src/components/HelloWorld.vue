@@ -8,9 +8,20 @@
       <img v-if="videoDataUrl" :src="videoDataUrl">
     </div>
     <div>
-      Video file format:
-      <label><input v-model="recorderType" value="gif" type="radio" :disabled="isRecording" @change="destroyAnimation">Gif</label>
-      <label><input v-model="recorderType" value="webm" type="radio" :disabled="isRecording" @change="destroyAnimation">Webm</label>
+      <p>
+        Video file format:
+        <label><input v-model="recorderType" value="gif" type="radio" :disabled="isRecording" @change="destroyAnimation">Gif</label>
+        <label><input v-model="recorderType" value="webm" type="radio" :disabled="isRecording" @change="destroyAnimation">Webm</label>
+      </p>
+      <p>
+        Framerate:
+        <select v-model="framerate">
+          <option>30</option>
+          <option>60</option>
+        </select>
+      </p>
+    </div>
+    <div ref="frames">
     </div>
   </div>
 </template>
@@ -45,6 +56,9 @@ const loadLottieJSON = (filereader: FileReader) => filereader.result as string;
 
 const xmlSerializer = new XMLSerializer();
 
+// Framerate must be divisor of 60
+type ValidFramerate = 1 | 2 | 3 | 4 | 5 | 6 | 10 | 12 | 15 | 20 | 30 | 60;
+
 @Component
 export default class HelloWorld extends Vue {
   animation: AnimationItem | null = null;
@@ -55,6 +69,7 @@ export default class HelloWorld extends Vue {
   recorderType: 'gif' | 'webm' = 'gif';
   objectUrls: string[] = [];
   isRecording: boolean = false;
+  framerate: ValidFramerate = 60;
 
   destroyAnimation() {
     if (this.animation) {
@@ -75,7 +90,7 @@ export default class HelloWorld extends Vue {
     const context = canvas.getContext('2d')!;
     context.fillStyle = '#ffffff';
     // @ts-ignore
-    const stream = canvas.captureStream();
+    const stream = canvas.captureStream(this.framerate);
     // @ts-ignore
     const recorder = this.recorderType === 'webm' ? new MediaRecorder(stream, { mimeType: "video/webm" }) : {
       stop: () => {},
@@ -116,7 +131,12 @@ export default class HelloWorld extends Vue {
     this.isAnimating = true;
     this.isRecording = true;
 
+    let currentFrame = 0;
     this.animation.addEventListener('enterFrame', () => {
+      currentFrame += 1;
+
+      if (currentFrame % (60 / this.framerate)) return;
+
       if (this.recorderType === 'webm' && recorder.state === 'inactive') {
         recorder.start();
       }
@@ -133,9 +153,11 @@ export default class HelloWorld extends Vue {
         context.fillRect(0, 0, 320, 320);
         context.drawImage(img, 0, 0, 320, 320);
         if (this.recorderType === 'gif') {
-          this.gif.addFrame(context, { copy: true, delay: 1000 / 60 });
+          this.gif.addFrame(context, { copy: true, delay: 1000 / this.framerate });
         }
       };
+
+      (this.$refs.frames as Element).appendChild(img);
     });
     this.animation.addEventListener('complete', () => {
       if (this.recorderType === 'webm') {
